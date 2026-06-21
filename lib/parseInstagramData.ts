@@ -11,6 +11,11 @@ export interface ParseResult {
   warnings: string[];
 }
 
+function getBasename(entryName: string): string {
+  const parts = entryName.split("/");
+  return (parts[parts.length - 1] || entryName).toLowerCase();
+}
+
 export function extractUsernamesFromAny(json: any): PendingRequest[] {
   const out: PendingRequest[] = [];
 
@@ -71,6 +76,8 @@ export function extractUsernamesFromAny(json: any): PendingRequest[] {
       "relationships_follow_requests",
       "follow_requests_you_ve_sent",
       "follow_requests_sent",
+      "relationships_following",
+      "relationships_followers",
     ];
     for (const key of candidateKeys) {
       if (Array.isArray(json[key])) arraysToScan.push(json[key]);
@@ -102,12 +109,12 @@ export function parseInstagramZip(buffer: Buffer): ParseResult {
   const entries = zip.getEntries();
 
   const candidates = entries.filter((e) => {
-    const lower = e.entryName.toLowerCase();
+    const base = getBasename(e.entryName);
     return (
-      lower.endsWith(".json") &&
-      (lower.includes("follow_request") ||
-        lower.includes("follow_requests_sent") ||
-        lower.includes("pending"))
+      base.endsWith(".json") &&
+      (base.includes("follow_request") ||
+        base.includes("follow_requests_sent") ||
+        base.includes("pending"))
     );
   });
 
@@ -158,21 +165,25 @@ export function parseFollowersFollowing(buffer: Buffer): NotFollowingBackResult 
 
   const entries = zip.getEntries();
 
+  // PENTING: cocokkan berdasarkan NAMA FILE saja (bukan full path),
+  // karena folder "followers_and_following" mengandung kedua kata
+  // "followers" dan "following" sekaligus dan akan salah cocok
+  // kalau dicek dari path lengkapnya.
   const followerFiles = entries.filter((e) => {
-    const lower = e.entryName.toLowerCase();
+    const base = getBasename(e.entryName);
     return (
-      lower.endsWith(".json") &&
-      lower.includes("followers") &&
-      !lower.includes("follow_request")
+      base.endsWith(".json") &&
+      base.startsWith("followers") &&
+      !base.includes("follow_request")
     );
   });
 
   const followingFiles = entries.filter((e) => {
-    const lower = e.entryName.toLowerCase();
+    const base = getBasename(e.entryName);
     return (
-      lower.endsWith(".json") &&
-      lower.includes("following") &&
-      !lower.includes("follow_request")
+      base.endsWith(".json") &&
+      base.startsWith("following") &&
+      !base.includes("follow_request")
     );
   });
 
