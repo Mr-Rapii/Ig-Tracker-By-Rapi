@@ -11,18 +11,32 @@ export interface ParseResult {
   warnings: string[];
 }
 
-/**
- * Instagram data exports change shape between "JSON" and "HTML" download
- * formats, and the JSON keys differ slightly by export version. We try a
- * few known shapes and fall back to a generic scanner for any file whose
- * path contains "follow_request".
- */
 function extractUsernamesFromAny(json: any): PendingRequest[] {
   const out: PendingRequest[] = [];
 
   const pushEntry = (entry: any) => {
     if (!entry) return;
-    // Common shape: { string_list_data: [{ href, value, timestamp }], title? }
+    if (Array.isArray(entry.label_values)) {
+      let username: string | undefined;
+      let fullName: string | undefined;
+      for (const lv of entry.label_values) {
+        const label = (lv.label || "").toLowerCase();
+        if (!lv.value) continue;
+        if (label.includes("nama pengguna") || label === "username") {
+          username = lv.value;
+        } else if (label === "nama" || label === "name") {
+          fullName = lv.value;
+        }
+      }
+      if (username) {
+        out.push({
+          username,
+          fullName,
+          timestamp: entry.timestamp,
+        });
+      }
+      return;
+    }
     if (Array.isArray(entry.string_list_data)) {
       for (const item of entry.string_list_data) {
         const usernameGuess =
@@ -38,7 +52,6 @@ function extractUsernamesFromAny(json: any): PendingRequest[] {
       }
       return;
     }
-    // Flat shape: { username, full_name, timestamp }
     if (entry.username) {
       out.push({
         username: entry.username,
@@ -53,7 +66,6 @@ function extractUsernamesFromAny(json: any): PendingRequest[] {
   if (Array.isArray(json)) {
     arraysToScan.push(json);
   } else if (json && typeof json === "object") {
-    // Known top-level keys across IG export versions
     const candidateKeys = [
       "relationships_follow_requests_sent",
       "relationships_follow_requests",
@@ -63,7 +75,6 @@ function extractUsernamesFromAny(json: any): PendingRequest[] {
     for (const key of candidateKeys) {
       if (Array.isArray(json[key])) arraysToScan.push(json[key]);
     }
-    // Fallback: scan all array-valued properties at top level
     if (arraysToScan.length === 0) {
       for (const val of Object.values(json)) {
         if (Array.isArray(val)) arraysToScan.push(val);
@@ -90,7 +101,6 @@ export function parseInstagramZip(buffer: Buffer): ParseResult {
 
   const entries = zip.getEntries();
 
-  // Look for any JSON file whose path suggests follow requests
   const candidates = entries.filter((e) => {
     const lower = e.entryName.toLowerCase();
     return (
