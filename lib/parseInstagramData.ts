@@ -11,7 +11,7 @@ export interface ParseResult {
   warnings: string[];
 }
 
-function extractUsernamesFromAny(json: any): PendingRequest[] {
+export function extractUsernamesFromAny(json: any): PendingRequest[] {
   const out: PendingRequest[] = [];
 
   const pushEntry = (entry: any) => {
@@ -137,4 +137,85 @@ export function parseInstagramZip(buffer: Buffer): ParseResult {
   );
 
   return { pending, warnings };
+}
+
+export interface NotFollowingBackResult {
+  notFollowingBack: PendingRequest[];
+  followersCount: number;
+  followingCount: number;
+  warnings: string[];
+}
+
+export function parseFollowersFollowing(buffer: Buffer): NotFollowingBackResult {
+  const warnings: string[] = [];
+  let zip: AdmZip;
+
+  try {
+    zip = new AdmZip(buffer);
+  } catch {
+    throw new Error("File ZIP tidak valid atau rusak.");
+  }
+
+  const entries = zip.getEntries();
+
+  const followerFiles = entries.filter((e) => {
+    const lower = e.entryName.toLowerCase();
+    return (
+      lower.endsWith(".json") &&
+      lower.includes("followers") &&
+      !lower.includes("follow_request")
+    );
+  });
+
+  const followingFiles = entries.filter((e) => {
+    const lower = e.entryName.toLowerCase();
+    return (
+      lower.endsWith(".json") &&
+      lower.includes("following") &&
+      !lower.includes("follow_request")
+    );
+  });
+
+  if (followerFiles.length === 0 || followingFiles.length === 0) {
+    throw new Error(
+      "Tidak ditemukan file followers/following di dalam ZIP. Pastikan kamu mengunduh data Instagram dalam format JSON dan menyertakan folder 'followers_and_following'."
+    );
+  }
+
+  const followersSet = new Set<string>();
+  for (const file of followerFiles) {
+    try {
+      const content = file.getData().toString("utf-8");
+      const json = JSON.parse(content);
+      for (const entry of extractUsernamesFromAny(json)) {
+        followersSet.add(entry.username.toLowerCase());
+      }
+    } catch {
+      warnings.push(`Gagal membaca ${file.entryName}`);
+    }
+  }
+
+  const followingMap = new Map<string, PendingRequest>();
+  for (const file of followingFiles) {
+    try {
+      const content = file.getData().toString("utf-8");
+      const json = JSON.parse(content);
+      for (const entry of extractUsernamesFromAny(json)) {
+        followingMap.set(entry.username.toLowerCase(), entry);
+      }
+    } catch {
+      warnings.push(`Gagal membaca ${file.entryName}`);
+    }
+  }
+
+  const notFollowingBack = Array.from(followingMap.values())
+    .filter((entry) => !followersSet.has(entry.username.toLowerCase()))
+    .sort((a, b) => a.username.localeCompare(b.username));
+
+  return {
+    notFollowingBack,
+    followersCount: followersSet.size,
+    followingCount: followingMap.size,
+    warnings,
+  };
 }

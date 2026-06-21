@@ -2,6 +2,7 @@ import Link from "next/link";
 
 const navLinks = [
   { href: "/#upload", label: "Cek Pending" },
+  { href: "/not-following-back", label: "Tidak Follow Balik" },
   { href: "/how-it-works", label: "Cara Kerja" },
   { href: "/tutorial", label: "Tutorial" },
   { href: "/faq", label: "FAQ" },
