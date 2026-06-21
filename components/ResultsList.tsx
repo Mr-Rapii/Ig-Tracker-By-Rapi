@@ -13,9 +13,17 @@ type SortKey = "username" | "date";
 export default function ResultsList({
   pending,
   onReset,
+  emptyTitle = "Tidak ada yang menunggu.",
+  emptySubtitle = "Semua follow request kamu sudah direspons. Bersih.",
+  countSuffix = "akun masih menunggu",
+  csvFilename = "pending-follow-requests.csv",
 }: {
   pending: PendingRequest[];
   onReset: () => void;
+  emptyTitle?: string;
+  emptySubtitle?: string;
+  countSuffix?: string;
+  csvFilename?: string;
 }) {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("username");
@@ -44,7 +52,7 @@ export default function ResultsList({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "pending-follow-requests.csv";
+    a.download = csvFilename;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -53,10 +61,10 @@ export default function ResultsList({
     return (
       <div className="rounded-2xl border border-white/10 bg-surface p-10 text-center">
         <p className="font-display text-xl italic text-ivory">
-          Tidak ada yang menunggu.
+          {emptyTitle}
         </p>
         <p className="mt-2 text-sm text-ivory/50">
-          Semua follow request kamu sudah direspons. Bersih.
+          {emptySubtitle}
         </p>
         <button
           onClick={onReset}
@@ -73,7 +81,7 @@ export default function ResultsList({
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-ivory/60">
           <span className="font-mono text-amber">{filtered.length}</span> dari{" "}
-          {pending.length} akun masih menunggu
+          {pending.length} {countSuffix}
         </p>
         <div className="flex gap-2">
           <button
